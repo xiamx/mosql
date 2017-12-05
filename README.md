@@ -21,7 +21,9 @@ Install from Rubygems as:
 
 Or build from source by:
 
-    $ gem build mosql.gemspec
+    $ git clone https://github.com/suratpyari/mosql
+    $ cd mosql
+    $ gem install mosql-0.5.1
 
 And then install the built gem.
 
