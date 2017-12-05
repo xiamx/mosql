@@ -1,21 +1,7 @@
-# Added ability for adding id as uuid
-# save embedded documents too
+# Recent addition in this repository:
 
-At Stripe, we love MongoDB. We love the flexibility it gives us in
-changing data schemas as we grow and learn, and we love its
-operational properties. We love replsets. We love the uniform query
-language that doesn't require generating and parsing strings, tracking
-placeholder parameters, or any of that nonsense.
-
-The thing is, we also love SQL. We love the ease of doing ad-hoc data
-analysis over small-to-mid-size datasets in SQL. We love doing JOINs
-to pull together reports summarizing properties across multiple
-datasets. We love the fact that virtually every employee we hire
-already knows SQL and is comfortable using it to ask and answer
-questions about data.
-
-So, we thought, why can't we have the best of both worlds? Thus:
-MoSQL.
+Added ability for adding id as uuid
+Save embedded documents too
 
 # MoSQL: Put Mo' SQL in your NoSQL
 
@@ -31,7 +17,7 @@ power of SQL.
 
 Install from Rubygems as:
 
-    $ gem install mosql
+    $ gem install mosql -l https://github.com/suratpyari/mosql
 
 Or build from source by:
 
@@ -55,6 +41,10 @@ types. An example collection map might be:
       blog_posts:
         :columns:
         - id:
+          :source: new_fields # new source introduced in case if a field is not mapped to any field in mongodb
+          :type: UUID # new key introduced
+          :default: uuid_generate_v4 # new key introduced
+        - mongo_id:
           :source: _id
           :type: TEXT
         - author_name:
@@ -68,6 +58,7 @@ types. An example collection map might be:
         :meta:
           :table: blog_posts
           :extra_props: true
+          :parent_table: embeddable # new key introduced
 
 Said another way, the collection map is a YAML file containing a hash
 mapping
@@ -243,6 +234,7 @@ separate PostgreSQL instances, but we have not actually tested this
 yet.
 
 # Development
+Original Repo:  https://github.com/stripe/mosql
 
 Patches and contributions are welcome! Please fork the project and
 open a pull request on [github][github], or just report issues.
@@ -260,4 +252,6 @@ rake test
 You can also point the suite at a different target via environment
 variables; See `test/functional/_lib.rb` for more information.
 
-[github]: https://github.com/stripe/mosql
+[github]: https://github.com/suratpyari/mosql
+
+
