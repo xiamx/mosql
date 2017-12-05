@@ -4,12 +4,12 @@ require 'mosql/version'
 
 Gem::Specification.new do |gem|
   gem.authors       = ["Nelson Elhage"]
-  gem.email         = ["nelhage@stripe.com"]
+  gem.email         = ["suratpyari.db21@gmail.com"]
   gem.description   = %q{A library for streaming MongoDB to SQL}
   gem.summary       = %q{MongoDB -> SQL streaming bridge}
-  gem.homepage      = "https://github.com/stripe/mosql"
+  gem.homepage      = "https://github.com/suratpyari/mosql"
 
-  gem.files         = `git ls-files`.split($\)
+  gem.files         = `git ls-files`.split($\).reject{|x| x.match(/\.gem/)}
   gem.executables   = gem.files.grep(%r{^bin/}).map{ |f| File.basename(f) }
   gem.test_files    = gem.files.grep(%r{^(test|spec|features)/})
   gem.name          = "mosql"
