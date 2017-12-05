@@ -3,6 +3,8 @@ require 'mongo'
 require 'sequel'
 require 'mongoriver'
 require 'json'
+require 'active_support/core_ext/string'
+require 'byebug'
 
 require 'mosql/version'
 require 'mosql/log'

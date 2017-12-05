@@ -1,4 +1,4 @@
-module MoSQL
+  module MoSQL
   class SQLAdapter
     include MoSQL::Logging
 

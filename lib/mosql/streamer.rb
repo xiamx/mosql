@@ -58,10 +58,78 @@ module MoSQL
           h = {}
           cols.zip(it).each { |k,v| h[k] = v }
           unsafe_handle_exceptions(ns, h) do
-            @sql.upsert!(table, @schema.primary_sql_key_for_ns(ns), h)
+            create_record(table, ns, h)
           end
         end
       end
+    end
+
+    def create_record(table, ns, h, overwrite_attributes = {})
+      h.merge(overwrite_attributes) if overwrite_attributes
+      h = h.select{|x, y| y}
+      associations = []
+      if h['_extra_props']
+        extra_props = JSON.parse(h['_extra_props'])
+        unless extra_props.empty?
+          associations, h['_extra_props'] = fetch_association(table, ns, h, extra_props)
+        end
+      end
+
+      parent_id = @sql.upsert!(table, @schema.primary_sql_key_for_ns(ns), h)
+
+      create_associations(associations, parent_id)
+    end
+
+    def create_associations(associations, parent_id)
+      associations.each do |obj|
+        obj[:att] ||= {}
+        obj[:att][obj[:association_name]] = parent_id
+        if obj[:values].is_a?(Array)
+          obj[:values].each do |item|
+            create_record(obj[:new_table], obj[:new_ns], formatted_ns(item, obj[:new_ns]), obj[:att])
+          end
+        else
+          create_record(obj[:new_table], obj[:new_ns], formatted_ns(obj[:values], obj[:new_ns]), obj[:att])
+        end
+      end
+    end
+
+    def fetch_association(table, ns, h, extra_props)
+      associations = []
+      extra_props.each do |a, value|
+        table_name = ActiveSupport::Inflector.pluralize a.to_sym
+        if table.db.tables.include?(table_name.to_sym)
+          obj = {new_ns: ns.gsub(".#{ns.split('.')[-1]}", ".#{table_name}")}
+          obj[:new_table] = @sql.table_for_ns(obj[:new_ns])
+          table_detail = @schema.find_ns(obj[:new_ns])
+          polymorphic_association = table_detail[:meta][:parent_table]
+          singular_table_name = ActiveSupport::Inflector.singularize(ns.split('.')[-1])
+          new_association_name = singular_table_name+'_id'
+          if table_detail[:columns].select{|x| x[:name] == new_association_name}.blank?
+            if polymorphic_association
+              obj[:association_name] = polymorphic_association+'_id'
+              obj[:att] = {polymorphic_association+'_type' => singular_table_name.capitalize}
+            end
+          else
+            obj[:association_name] = new_association_name
+          end
+          if obj[:association_name]
+            obj[:values] = extra_props[a]
+            associations << obj
+            extra_props.delete(extra_props[a])
+          end
+        end
+      end
+      [associations, extra_props.to_json.to_s]
+    end
+
+    def formatted_ns(item, ns)
+      # only for crowdstaffing added [nil] to initialise id
+      it = @schema.transform(ns, item)
+      cols = @schema.all_columns(@schema.find_ns(ns))
+      h={}
+      item = cols.zip(it).each { |k,v| h[k] = v }
+      h
     end
 
     def with_retries(tries=10)
@@ -116,14 +184,15 @@ module MoSQL
         log.info("Importing for Mongo DB #{dbname}...")
         db = @mongo.db(dbname)
         collections = db.collections.select { |c| spec.key?(c.name) }
-
         collections.each do |collection|
           ns = "#{dbname}.#{collection.name}"
           import_collection(ns, collection, spec[collection.name][:meta][:filter])
           exit(0) if @done
         end
+        @sql.db.tables.each do |t|
+          puts "Records in table #{t}: #{@sql.db[t.to_sym].count}"
+        end
       end
-
       tailer.save_state(start_state) unless options[:skip_tail]
     end
 

@@ -14,6 +14,8 @@ module MoSQL
             :type   => ent.fetch(:type),
             :name   => (ent.keys - [:source, :type]).first,
           }
+          col[:primary] = ent[:primary] if ent[:primary]
+          col[:default] = ent[:default] if ent[:default]
         elsif ent.is_a?(Hash) && ent.keys.length == 1 && ent.values.first.is_a?(String)
           col = {
             :source => ent.first.first,
@@ -35,7 +37,7 @@ module MoSQL
     def check_columns!(ns, spec)
       seen = Set.new
       spec[:columns].each do |col|
-        if seen.include?(col[:source])
+        if seen.include?(col[:source]) && col[:source] != 'new_field'
           raise SchemaError.new("Duplicate source #{col[:source]} in column definition #{col[:name]} for #{ns}.")
         end
         seen.add(col[:source])
@@ -76,28 +78,30 @@ module MoSQL
     end
 
     def create_schema(db, clobber=false)
+      db.run 'CREATE EXTENSION "uuid-ossp"' rescue nil
       @map.values.each do |dbspec|
         dbspec.each do |n, collection|
           next unless n.is_a?(String)
           meta = collection[:meta]
           composite_key = meta[:composite_key]
           keys = []
-          log.info("Creating table '#{meta[:table]}'...")
           db.send(clobber ? :create_table! : :create_table?, meta[:table]) do
             collection[:columns].each do |col|
               opts = {}
               if col[:source] == '$timestamp'
                 opts[:default] = Sequel.function(:now)
+              elsif col[:default] && col[:default] == 'uuid_generate_v4'
+                opts[:default] = (col[:default] == 'uuid_generate_v4' ? Sequel.function(col[:default]) : col[:default])
               end
               column col[:name], col[:type], opts
-
-              if composite_key and composite_key.include?(col[:name])
+              if collection[:columns].select{|x| x[:primary]}.any?
+                keys = collection[:columns].select{|x| x[:primary]}.collect{|x| x[:name]}.collect(&:to_sym)
+              elsif composite_key and composite_key.include?(col[:name])
                 keys << col[:name].to_sym
               elsif not composite_key and col[:source].to_sym == :_id
                 keys << col[:name].to_sym
               end
             end
-
             primary_key keys
             if meta[:extra_props]
               type =
@@ -346,9 +350,9 @@ module MoSQL
       if ns[:meta][:composite_key]
         keys = ns[:meta][:composite_key]
       else
-        keys << ns[:columns].find {|c| c[:source] == '_id'}[:name]
+        pkey = (ns[:columns].find {|c| c[:primary] == true}[:name] || ns[:columns].find {|c| c[:source] == '_id'}[:name])
+        keys << pkey
       end
-
       return keys
     end
   end
