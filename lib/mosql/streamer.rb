@@ -78,6 +78,10 @@ module MoSQL
       parent_id = @sql.upsert!(table, @schema.primary_sql_key_for_ns(ns), h)
 
       create_associations(associations, parent_id)
+
+      table_detail = @schema.find_ns(ns)
+      seed_from_cols = table_detail[:columns].select { |col| col[:seed_from_mongo_id] }
+      byebug if not seed_from_cols.blank?
     end
 
     def create_associations(associations, parent_id)
@@ -92,6 +96,43 @@ module MoSQL
           create_record(obj[:new_table], obj[:new_ns], formatted_ns(obj[:values], obj[:new_ns]), obj[:att])
         end
       end
+    end
+
+    def seed_uuid_from_mongo_id(ns, collection, filter)
+      log.info("Seeding uuid for #{ns}...")
+      count = 0
+      batch = []
+      table = @sql.table_for_ns(ns)
+      table_detail = @schema.find_ns(ns)
+
+      start    = Time.now
+      sql_time = 0
+
+      seedable_columns = table_detail[:columns].select{ |td| td[:seed_from_mongo_id]  }
+
+      byebug if table_detail[:meta][:table] == 'talents'
+      #collection.find(filter, :batch_size => BATCH) do |cursor|
+        #with_retries do
+          #cursor.each do |obj|
+            #batch << @schema.transform(ns, obj)
+            #count += 1
+
+            #if batch.length >= BATCH
+              #sql_time += track_time do
+                #bulk_upsert(table, ns, batch)
+              #end
+              #elapsed = Time.now - start
+              #log.info("Imported #{count} rows (#{elapsed}s, #{sql_time}s SQL)...")
+              #batch.clear
+              #exit(0) if @done
+            #end
+          #end
+        #end
+      #end
+
+      #unless batch.empty?
+        #bulk_upsert(table, ns, batch)
+      #end
     end
 
     def fetch_association(table, ns, h, extra_props)
@@ -184,9 +225,16 @@ module MoSQL
         log.info("Importing for Mongo DB #{dbname}...")
         db = @mongo.db(dbname)
         collections = db.collections.select { |c| spec.key?(c.name) }
+
+        #collections.each do |collection|
+          #ns = "#{dbname}.#{collection.name}"
+          #import_collection(ns, collection, spec[collection.name][:meta][:filter])
+          #exit(0) if @done
+        #end
+
         collections.each do |collection|
           ns = "#{dbname}.#{collection.name}"
-          import_collection(ns, collection, spec[collection.name][:meta][:filter])
+          seed_uuid_from_mongo_id(ns, collection, spec[collection.name][:meta][:filter])
           exit(0) if @done
         end
         @sql.db.tables.each do |t|

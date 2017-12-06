@@ -16,6 +16,8 @@ module MoSQL
           }
           col[:primary] = ent[:primary] if ent[:primary]
           col[:default] = ent[:default] if ent[:default]
+          col[:seed_from_mongo_id] = ent[:seed_from_mongo_id] if ent[:seed_from_mongo_id]
+          col[:seed_from_table] = ent[:seed_from_table] if ent[:seed_from_table]
         elsif ent.is_a?(Hash) && ent.keys.length == 1 && ent.values.first.is_a?(String)
           col = {
             :source => ent.first.first,
@@ -90,8 +92,13 @@ module MoSQL
               opts = {}
               if col[:source] == '$timestamp'
                 opts[:default] = Sequel.function(:now)
-              elsif col[:default] && col[:default] == 'uuid_generate_v4'
-                opts[:default] = (col[:default] == 'uuid_generate_v4' ? Sequel.function(col[:default]) : col[:default])
+              end
+              if col[:default]
+                if col[:default] == 'uuid_generate_v4'
+                  opts[:default] = Sequel.function(col[:default])
+                else
+                  opts[:default] = col[:default]
+                end
               end
               column col[:name], col[:type], opts
               if collection[:columns].select{|x| x[:primary]}.any?
